@@ -22,6 +22,60 @@
 
 from pid import PIDAgent
 from keyframes import hello
+from keyframes import *
+
+import time
+
+#calculates spline curve using times(argument x) and keys(argument y) in our dataset, with help of pseudo code from wikipedia
+#and returns approximated output value of the function with a given time
+def cubic_spline(x, y, time):
+    if (time == 0.0):
+        return 0.0
+    #returning the last angle if the time is past keyframe
+    if (time > x[len(x)-1]):
+        #print("Done")
+        return y[len(y)-1][0]
+    #coefficients(a,b,c,d) and helper variables(u,h,l,z)
+    a = []
+    b,d,u = [],[],[]
+    h,c,l,z = [],[],[],[]
+    for i in range(len(x)):
+        a.append(y[i][0])
+        #print(y[i][0])
+        c.append(0)
+        l.append(0)
+        z.append(0)
+    for i in range(len(x)-1):
+        h.append(x[i+1]-x[i])
+        b.append(0)
+        d.append(0)
+        u.append(0)
+    alpha = []
+    alpha.append(0)
+    for i in range(1,len(x)-1):
+        alpha_i = (3/h[i])*(a[i+1]-a[i]) - (3/h[i-1])*(a[i]-a[i-1])
+        alpha.append(alpha_i)
+    l[0] = 1
+    for i in range(1,len(x)-1):
+        l[i] = (2*(x[i+1]-x[i-1])-h[i-1]*u[i-1])
+        u[i] = (h[i]/l[i])
+        z[i] = ((a[i]-h[i-1]*z[i-1])/l[i])
+    l[len(x)-1] = 1
+    for j in range(len(x)-2,-1, -1):
+        c[j] = z[j]- u[j]*c[j+1]
+        b[j] = ((a[j+1]-a[j])/h[j]) - ((h[j]*(c[j+1]+2*c[j]))/3)
+        d[j] = (c[j+1] - c[j]) / (3 * h[j])
+    #p(x) = ai + bi(x-xi) + ci(x-xi)cubed + di(x-xi)tripled
+    for i in range(len(x)-1):
+        if( time < x[i+1]):
+            xi = x[i]
+            
+            #returning the approximated angle
+            return a[i] + b[i]*(time-xi) + c[i]*(time-xi)*(time-xi) + d[i]*(time-xi)*(time-xi)*(time-xi)
+
+    return y[len(y)-1][0]
+
+start = -1
 
 
 class AngleInterpolationAgent(PIDAgent):
@@ -38,13 +92,34 @@ class AngleInterpolationAgent(PIDAgent):
         self.target_joints.update(target_joints)
         return super(AngleInterpolationAgent, self).think(perception)
 
+
     def angle_interpolation(self, keyframes, perception):
         target_joints = {}
         # YOUR CODE HERE
+        #setting motion start time
+        global start
+        if( start == -1):
+            start = perception.time
+        time = perception.time - start 
+        names, times, keys = keyframes
+        #iterating name list
+        for i in range(len(names)):
+            #cubic_spline() function calculates  
+            spline = cubic_spline(times[i], keys[i], time)
+            target_joints[names[i]] = spline
+            #print(spline)
 
         return target_joints
 
+
 if __name__ == '__main__':
     agent = AngleInterpolationAgent()
-    agent.keyframes = hello()  # CHANGE DIFFERENT KEYFRAMES
+    # hello and wipe_forehead seems to be working,
+    # at standing up the movement seems ok, but cant quite stand up, 
+    # the functions might be too slow for advanced movements
+    agent.keyframes = hello()
+    #agent.keyframes = leftBackToStand()
+    #agent.keyframes = leftBellyToStand()
+    #agent.keyframes = rightBackToStand()
+    #agent.keyframes = wipe_forehead(1)
     agent.run()
